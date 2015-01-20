@@ -9,7 +9,7 @@
  *
  * Change Logs:
  * Date           Author       Notes
- * 2013-05-18     Bernard      The first version for LPC40xx
+ * 2015-01-18     xiaonong      The first version for LPC15xx
  */
 
 #include <rthw.h>

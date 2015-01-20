@@ -10,7 +10,7 @@
  * Change Logs:
  * Date           Author       Notes
  * 2006-08-31     Bernard      first implementation
- * 2011-06-05     Bernard      modify for STM32F107 version
+ * 2015-01-20     xiaonong      modify for lpc15xx version
  */
 
 #include <rthw.h>
@@ -40,8 +40,8 @@ void rtthread_startup(void)
 	/* initialize timer system */
 	rt_system_timer_init();
 
-    /* initialize system heap */
-    rt_system_heap_init(HEAP_BEGIN, HEAP_END);
+  /* initialize system heap */
+  rt_system_heap_init(HEAP_BEGIN, HEAP_END);
 
 	/* initialize scheduler system */
 	rt_system_scheduler_init();

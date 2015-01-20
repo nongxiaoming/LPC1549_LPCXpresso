@@ -10,8 +10,7 @@
  * Change Logs:
  * Date           Author       Notes
  * 2009-01-05     Bernard      first implementation
- * 2010-02-04     Magicoe      ported to LPC17xx
- * 2010-05-02     Aozima       update CMSIS to 130
+ * 2015-01-20     xiaonong      ported to LPC15xx
  */
 
 #include <rthw.h>
@@ -41,7 +40,7 @@ void SysTick_Handler(void)
 }
 
 /**
- * This function will initial LPC17xx board.
+ * This function will initial LPC15xx board.
  */
 void rt_hw_board_init()
 {
