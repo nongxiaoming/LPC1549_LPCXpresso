@@ -35,7 +35,7 @@ static rt_err_t lpc_configure(struct rt_serial_device *serial, struct serial_con
   /* 115200 baud @ 12MHz */
   LPC_SYSCON->UARTCLKDIV = 6;                   /* UART clock =  PCLK / 6     */
   LPC_SYSCON->FRGCTRL    = 0x15FF;
-  uart->UART->BRG  = ((SystemCoreClock / 16 / cfg->baud_rate) -1);
+  uart->UART->BRG  = ((12000000UL / 16 / cfg->baud_rate) -1);
 
   uart->UART->CFG  = ((1UL << 0) |                    /* Enable USART               */
                 (1UL << 2) |                    /* 8 data bits                */
