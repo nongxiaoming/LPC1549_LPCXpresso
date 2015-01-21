@@ -74,6 +74,8 @@
 #define RT_USING_CONSOLE
 // <integer name="RT_CONSOLEBUF_SIZE" description="The buffer size for console output" default="128" />
 #define RT_CONSOLEBUF_SIZE	128
+// <string name="RT_CONSOLE_DEVICE_NAME" description="The name of console device" default="" />
+#define RT_CONSOLE_DEVICE_NAME  "uart0"
 // </section>
 
 // <bool name="RT_USING_COMPONENTS_INIT" description="Using RT-Thread components initialization" default="true" />

@@ -20,17 +20,9 @@
 #include "LPC15xx.h"
 #include <rtthread.h>
 
-
-// <bool name="RT_USING_UART0" description="Using UART0" default="true" />
 #define RT_USING_UART0
-// <bool name="RT_USING_UART1" description="Using UART1" default="true" />
 //#define RT_USING_UART1
-// <bool name="RT_USING_UART2" description="Using UART2" default="true" />
 //#define RT_USING_UART2
-// <string name="RT_CONSOLE_DEVICE_NAME" description="The name of console device" default="" />
-#define RT_CONSOLE_DEVICE_NAME  "uart0"
-
-// </RDTConfigurator>
 
 #ifdef __CC_ARM
 extern int Image$$RW_IRAM1$$ZI$$Limit;
@@ -42,7 +34,9 @@ extern int Image$$RW_IRAM1$$ZI$$Limit;
 extern int __bss_end;
 #define HEAP_BEGIN  ((void *)&__bss_end)
 #endif
-#define HEAP_END    (void*)(0x20000000 + 0x9000)
+
+#define SRAM_SIZE   36                  /* 36 KB sram */
+#define HEAP_END    (void*)(0x2000000 + SRAM_SIZE*1024)
 
 void rt_hw_board_init(void);
 
