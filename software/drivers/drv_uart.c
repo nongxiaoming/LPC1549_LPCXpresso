@@ -15,8 +15,8 @@
 #include <rthw.h>
 #include <rtthread.h>
 #include <rtdevice.h>
-
-#include "board.h"
+#include <board.h>
+#include "drv_uart.h"
 
 struct lpc_uart
 {
@@ -35,7 +35,7 @@ static rt_err_t lpc_configure(struct rt_serial_device *serial, struct serial_con
   /* 115200 baud @ 12MHz */
   LPC_SYSCON->UARTCLKDIV = 6;                   /* UART clock =  PCLK / 6     */
   LPC_SYSCON->FRGCTRL    = 0x15FF;
-  uart->UART->BRG  = ((12000000UL / 16 / cfg->baud_rate) -1);
+  uart->UART->BRG  = ((SystemCoreClock / 16 / cfg->baud_rate) -1);
 
   uart->UART->CFG  = ((1UL << 0) |                    /* Enable USART               */
                 (1UL << 2) |                    /* 8 data bits                */
@@ -57,11 +57,11 @@ static rt_err_t lpc_control(struct rt_serial_device *serial, int cmd, void *arg)
     {
     case RT_DEVICE_CTRL_CLR_INT:
         /* disable rx irq */
-        uart->UART->INTENCLR &= ~0x01;
+        uart->UART->INTENCLR = UART_INTEN_RXRDY;
         break;
     case RT_DEVICE_CTRL_SET_INT:
         /* enable rx irq */
-        uart->UART->INTENSET |= 0x01;
+        uart->UART->INTENSET = UART_INTEN_RXRDY;
         break;
     }
 
@@ -109,113 +109,42 @@ struct rt_serial_device serial0;
 
 void UART0_IRQHandler(void)
 {
-    volatile  uint32_t IIR, tmp;
-
     /* enter interrupt */
     rt_interrupt_enter();
-
-    IIR = LPC_USART0->INTSTAT;
-    IIR &= 0x0e;
-    switch (IIR)
-    {
-
-    case 0x04:
-        rt_hw_serial_isr(&serial0, RT_SERIAL_EVENT_RX_IND);
-        break;
-    case 0x06:
-       // tmp = LPC_UART0->LSR;
-        break;
-    case 0x0c:
-        rt_hw_serial_isr(&serial0, RT_SERIAL_EVENT_RX_IND);
-        break;
-    default :
-       // tmp = LPC_UART0->LSR;
-        break;
-    }
+	
+	  if((LPC_USART0->INTSTAT & UART_STAT_RXRDY)!=0x00)
+		{
+		rt_hw_serial_isr(&serial0, RT_SERIAL_EVENT_RX_IND);
+		}
+		
     /* leave interrupt */
     rt_interrupt_leave();
 }
 #endif
-#ifdef RT_USING_UART2
-/* UART2 device driver structure */
-struct lpc_uart uart2 =
+#ifdef RT_USING_UART1
+/* UART1 device driver structure */
+struct lpc_uart uart1 =
 {
-    LPC_USART2,
-    UART2_IRQn,
+    LPC_USART1,
+    UART1_IRQn,
 };
-struct rt_serial_device serial2;
+struct rt_serial_device serial1;
 
-void UART2_IRQHandler(void)
+void UART1_IRQHandler(void)
 {
-    volatile  uint32_t IIR, tmp;
-
-
     /* enter interrupt */
     rt_interrupt_enter();
-
-    IIR = LPC_UART2->IIR;
-    IIR &= 0x0e;
-    switch (IIR)
-    {
-
-    case 0x04:
-        rt_hw_serial_isr(&serial2, RT_SERIAL_EVENT_RX_IND);
-        break;
-    case 0x06:
-        tmp = LPC_UART2->LSR;
-        break;
-    case 0x0c:
-        rt_hw_serial_isr(&serial2, RT_SERIAL_EVENT_RX_IND);
-        break;
-    default :
-        tmp = LPC_UART2->LSR;
-        break;
-    }
-
+	
+	  if((LPC_USART1->INTSTAT & UART_STAT_RXRDY)!=0x00)
+		{
+		rt_hw_serial_isr(&serial1, RT_SERIAL_EVENT_RX_IND);
+		}
+		
     /* leave interrupt */
     rt_interrupt_leave();
 }
 #endif
-#ifdef RT_USING_UART4
-/* UART4 device driver structure */
-struct lpc_uart uart4 =
-{
-    LPC_UART4,
-    UART4_IRQn,
-};
-struct rt_serial_device serial4;
 
-void UART4_IRQHandler(void)
-{
-    volatile  uint32_t IIR, tmp;
-
-
-    /* enter interrupt */
-    rt_interrupt_enter();
-
-    IIR = LPC_UART4->IIR;
-    IIR &= 0x0e;
-    switch (IIR)
-    {
-
-    case 0x04:
-        rt_hw_serial_isr(&serial4, RT_SERIAL_EVENT_RX_IND);
-        break;
-    case 0x06:
-        tmp = LPC_UART4->LSR;
-        break;
-    case 0x0c:
-        rt_hw_serial_isr(&serial4, RT_SERIAL_EVENT_RX_IND);
-        break;
-    default :
-        tmp = LPC_UART4->LSR;
-        break;
-    }
-
-    /* leave interrupt */
-    rt_interrupt_leave();
-}
-#endif
 
 void rt_hw_uart_init(void)
 {
@@ -257,24 +186,28 @@ void rt_hw_uart_init(void)
                           uart);
 #endif
 
-#ifdef RT_USING_UART2
-    uart = &uart2;
+#ifdef RT_USING_UART1
+    uart = &uart1;
 
-    serial2.ops    = &lpc_uart_ops;
-    serial2.config = config;
-    serial2.parent.user_data = uart;
+    serial1.ops    = &lpc_uart_ops;
+    serial1.config = config;
+    serial1.parent.user_data = uart;
     /*
-     * Initialize UART2 pin connect
-     * P2.8: U2_TXD
-     * P0.11: U2_RXD
+     * Initialize UART1 pin connect
+     * P0.11: U1_TXD
+     * P0.31: U1_RXD
      */
-    LPC_IOCON->P2_8 &= ~0x07;
-    LPC_IOCON->P0_11 &= ~0x07;
-    LPC_IOCON->P2_8 |= 0x02;
-    LPC_IOCON->P0_11 |= 0x01;
+     /* configure PINs GPIO0.11, GPIO0.31 for UART */
+    LPC_SYSCON->SYSAHBCLKCTRL0 |= ((1UL << 14) |  /* enable clock for GPIO0     */
+                                 (1UL << 12)  );/* enable clock for SWM       */
 
-    /* enable the uart2 power and clock */
-    LPC_SC->PCONP |= 0x01 << 24;
+    LPC_SWM->PINASSIGN1 &= ~((0xFF <<  8) |       /* clear PIN assign UART0_TXD */
+                           (0xFF <<  16)  );     /* clear PIN assign UART0_RXD */
+    LPC_SWM->PINASSIGN1 |=  ((  31 <<  0) |       /* PIN assign UART1_TXD  P0.11 */
+                           (  11 <<  8)  );     /* PIN assign UART1_RXD  P0.31 */
+		/* configure UART0 */
+    LPC_SYSCON->SYSAHBCLKCTRL1 |=  (1UL << 18);   /* Enable clock to UART1      */
+													 
     /* preemption = 1, sub-priority = 1 */
     NVIC_SetPriority(uart->UART_IRQn, ((0x01 << 3) | 0x01));
 
@@ -282,38 +215,9 @@ void rt_hw_uart_init(void)
     NVIC_EnableIRQ(uart->UART_IRQn);
 
     /* register UART2 device */
-    rt_hw_serial_register(&serial2, "uart2",
+    rt_hw_serial_register(&serial1, "uart1",
                           RT_DEVICE_FLAG_RDWR | RT_DEVICE_FLAG_INT_RX | RT_DEVICE_FLAG_STREAM,
                           uart);
 #endif
 
-#ifdef RT_USING_UART4
-    uart = &uart4;
-
-    serial4.ops    = &lpc_uart_ops;
-    serial4.config = config;
-
-    /*
-     * Initialize UART2 pin connect
-     * P5.4: U2_TXD
-     * P5.3: U2_RXD
-     */
-    LPC_IOCON->P5_4 &= ~0x07;
-    LPC_IOCON->P5_3 &= ~0x07;
-    LPC_IOCON->P5_4 |= 0x04;
-    LPC_IOCON->P5_3 |= 0x04;
-
-    /* enable the uart4 power and clock */
-    LPC_SC->PCONP |= 0x01 << 8;
-    /* preemption = 1, sub-priority = 1 */
-    NVIC_SetPriority(uart->UART_IRQn, ((0x01 << 3) | 0x01));
-
-    /* Enable Interrupt for UART channel */
-    NVIC_EnableIRQ(uart->UART_IRQn);
-
-    /* register UART2 device */
-    rt_hw_serial_register(&serial4, "uart4",
-                          RT_DEVICE_FLAG_RDWR | RT_DEVICE_FLAG_INT_RX | RT_DEVICE_FLAG_STREAM,
-                          uart);
-#endif
 }
