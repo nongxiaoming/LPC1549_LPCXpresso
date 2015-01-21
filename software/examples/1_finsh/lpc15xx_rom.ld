@@ -7,7 +7,7 @@
 MEMORY
 {
     CODE (rx) : ORIGIN = 0x00000000, LENGTH = 0x00040000   /* base code section 256K */
-    DATA (rw) : ORIGIN = 0x20000000, LENGTH = 0x00009000  /* base data section 36K */
+    DATA (rw) : ORIGIN = 0x2000000, LENGTH = 0x00009000  /* base data section 36K */
 }
 ENTRY(Reset_Handler)
 _system_stack_size = 0x200;
