@@ -20,8 +20,11 @@
 
 void rt_init_thread_entry(void* parameter)
 {
+#ifdef RT_USING_FINSH
 	/* initialization finsh shell Component */
     finsh_system_init();
+	  finsh_set_device(RT_CONSOLE_DEVICE_NAME);
+#endif
 }
 
 int rt_application_init()
