@@ -9,16 +9,17 @@
  *
  * Change Logs:
  * Date           Author       Notes
- * 2013-06-10     xiaonong      The first version for LPC40xx
+ * 2015-01-21     xiaonong      The first version for LPC15xx
  */
 
 #include <rthw.h>
 #include <rtthread.h>
 #include <rtdevice.h>
 #include "board.h"
+
 #ifdef RT_USING_SPI
 #include "drv_spi.h"
-#include "lpc_ssp.h"
+
 /* private rt-thread spi ops function */
 static rt_err_t configure(struct rt_spi_device *device, struct rt_spi_configuration *configuration);
 static rt_uint32_t xfer(struct rt_spi_device *device, struct rt_spi_message *message);
@@ -44,10 +45,13 @@ static rt_err_t configure(struct rt_spi_device *device,
                           struct rt_spi_configuration *configuration)
 {
     struct lpc_spi_bus *spi_bus = (struct lpc_spi_bus *)device->bus;
+	
+	  /* Disable spi device */
+	  spi_bus->SPI->CFG &= ~(0x01<<0);
     /* data_width */
     if (configuration->data_width > 3 && configuration->data_width <= 16)
     {
-        spi_bus->SPI->CR0 = (configuration->data_width - 1);
+        //spi_bus->SPI->CR0 = (configuration->data_width - 1);
 
     }
     else
@@ -56,69 +60,41 @@ static rt_err_t configure(struct rt_spi_device *device,
     }
     /* baudrate */
     {
-        uint32_t lpc_spi_max_clock;
-        uint32_t max_hz;
-        uint32_t prescale, div, cmp_clk;
-        lpc_spi_max_clock = 18000000;
-        max_hz = configuration->max_hz;
+        uint16_t div_val=0;
+        div_val = SystemCoreClock/configuration->max_hz;
 
-        if (max_hz > lpc_spi_max_clock)
-        {
-            max_hz = lpc_spi_max_clock;
-        }
-        /* Find closest divider to get at or under the target frequency.
-        Use smallest prescale possible and rely on the divider to get
-        the closest target frequency */
-        div = 0;
-        cmp_clk = 0xFFFFFFFF;
-        prescale = 2;
-        while (cmp_clk > max_hz)
-        {
-            cmp_clk = PeripheralClock / ((div + 1) * prescale);
-            if (cmp_clk >  max_hz)
-            {
-                div++;
-                if (div > 0xFF)
-                {
-                    div = 0;
-                    prescale += 2;
-                }
-            }
-        }
-        spi_bus->SPI->CR0 &= (~(0xff << 8));
-        spi_bus->SPI->CR0 |= (div << 8);
-        spi_bus->SPI->CPSR = prescale;
+        spi_bus->SPI->DIV = div_val;
     }
 
     /* CPOL */
     if (configuration->mode & RT_SPI_CPOL)
     {
-        spi_bus->SPI->CR0 |= (0x01 << 6);
+        spi_bus->SPI->CFG |= (0x01 << 5);
     }
     else
     {
-        spi_bus->SPI->CR0 &= ~(0x01 << 6);
+        spi_bus->SPI->CFG &= ~(0x01 << 5);
     }
     /* CPHA */
     if (configuration->mode & RT_SPI_CPHA)
     {
-        spi_bus->SPI->CR0 |= (0x01 << 7);
+        spi_bus->SPI->CFG |= (0x01 << 4);
     }
     else
     {
-        spi_bus->SPI->CR0 &= ~(0x01 << 7);
+        spi_bus->SPI->CFG &= ~(0x01 << 4);
     }
-    /*Clear the RxFIFO*/
-    {
-        uint8_t i;
-        uint16_t temp = temp;
-        for (i = 0; i < 8; i++)
-        {
-            temp = spi_bus->SPI->DR;
-        }
-    }
+//    /*Clear the RxFIFO*/
+//    {
+//        uint8_t i;
+//        uint16_t temp = temp;
+//        for (i = 0; i < 8; i++)
+//        {
+//            temp = spi_bus->SPI->DR;
+//        }
+//    }
     /* Enable SPI_MASTER */
-    spi_bus->SPI->CR1 = (0x01 << 1);
+     spi_bus->SPI->CFG |= (0x05);
 
     return RT_EOK;
 }
@@ -214,27 +190,21 @@ static rt_uint32_t xfer(struct rt_spi_device *device, struct rt_spi_message *mes
  * \return
  *
  */
-rt_err_t lpc_spi_register(LPC_SSP_TypeDef *SPI,
+rt_err_t lpc_spi_register(LPC_SPI0_Type *SPI,
                           struct lpc_spi_bus *lpc_spi,
                           const char *spi_bus_name)
 {
-    if (SPI == LPC_SSP0)
+    if (SPI == LPC_SPI0)
     {
-        lpc_spi->SPI = LPC_SSP0;
-        /*enable SSP0 power/clock*/
-        LPC_SC->PCONP |= (0x01 << 21);
+        lpc_spi->SPI = LPC_SPI0;
+       /* Enable the clock for SPI0 */
+         LPC_SYSCON->SYSAHBCLKCTRL1 |=  (1UL << 9);
     }
-    else if (SPI == LPC_SSP1)
+    else if (SPI == LPC_SPI1)
     {
-        lpc_spi->SPI = LPC_SSP1;
-        /*enable SSP1 power/clock*/
-        LPC_SC->PCONP |= (0x01 << 10);
-    }
-    else if (SPI == LPC_SSP2)
-    {
-        lpc_spi->SPI = LPC_SSP2;
-        /*enable SSP2 power/clock*/
-        LPC_SC->PCONP |= (0x01 << 20);
+        lpc_spi->SPI = LPC_SPI1;
+        /* Enable the clock for SPI1 */
+         LPC_SYSCON->SYSAHBCLKCTRL1 |=  (1UL << 10);
     }
     else
     {
@@ -243,69 +213,63 @@ rt_err_t lpc_spi_register(LPC_SSP_TypeDef *SPI,
 
     return rt_spi_bus_register(&lpc_spi->parent, spi_bus_name, &lpc_spi_ops);
 }
-/* SSP2
-SPI2_MOSI: P5.0
-SPI2_MISO: P5.1
-SPI2_SCK : P5.2
-CS1: P0.20  TOUCH
+/* SPI0
+SPI0_SCK  <--->PIO0_0
+SPI0_MOSI <--->PIO0_16
+SPI0_MISO <--->PIO0_10
+SPI0_SSEL <--->PIO0_20
 */
 int rt_hw_spi_init(void)
 {
     /* register spi bus */
     {
-        static struct lpc_spi_bus lpc_spi1;
-        lpc_spi_register(LPC_SSP1, &lpc_spi1, "spi1");
-        LPC_IOCON->P4_20 &= ~0x07;
-        LPC_IOCON->P4_20 |= 0x03;
-        LPC_IOCON->P4_22 &= ~0x07;
-        LPC_IOCON->P4_22 |= 0x03;
-        LPC_IOCON->P4_23 &= ~0x07;
-        LPC_IOCON->P4_23 |= 0x03;
+        static struct lpc_spi_bus lpc_spi0;
+        lpc_spi_register(LPC_SPI0, &lpc_spi0, "spi0");
+       	/* Enable the clock for Switch Matrix */
+         LPC_SYSCON->SYSAHBCLKCTRL0 |=  (1UL << 12);
+	/*
+	 * Initialize SPI0 pins connect
+	 * SCK0: PINASSIGN3[15:8]: Select P0.0
+	 * MOSI0: PINASSIGN3[23:16]: Select P0.16
+	 * MISO0: PINASSIGN3[31:24] : Select P0.10
+	 * SSEL0: PINASSIGN4[7:0]: Select P0.9
+	 */
+	LPC_IOCON->PIO0_0 = (0x01<<7);
+	LPC_IOCON->PIO0_16 = (0x01<<7);
+	LPC_IOCON->PIO0_10 = (0x01<<7);
+	LPC_IOCON->PIO0_9 = (0x01<<7);
+
+	LPC_SWM->PINASSIGN3 &= ~(0xff << 8);
+	LPC_SWM->PINASSIGN3 |=  (0 << 8);
+			
+	LPC_SWM->PINASSIGN3 &= ~(0xff << 16);
+	LPC_SWM->PINASSIGN3 |=  (16 << 16);
+	
+  LPC_SWM->PINASSIGN3 &= ~(0xff << 24);
+	LPC_SWM->PINASSIGN3 |=  (10 << 24);
+	
+	LPC_SWM->PINASSIGN4 &= ~(0xff << 0);
+	LPC_SWM->PINASSIGN4 |=  (9 << 0);
+
+
+	/* Disable the clock to the Switch Matrix to save power */
+	LPC_SYSCON->SYSAHBCLKCTRL0 &=  ~(1UL << 12);
     }
     /* attach cs */
     {
         static struct rt_spi_device spi_device;
         static struct lpc_spi_cs  spi_cs1;
         /* spi10: P4.21 */
-        LPC_IOCON->P4_21 &= ~0x07;
-        spi_cs1.port = LPC_GPIO4;
-        spi_cs1.pin = 21;
-        spi_cs1.port->DIR |= (0x01 << spi_cs1.pin);
-        spi_cs1.port->SET |= (0x01 << spi_cs1.pin);
+       // LPC_IOCON->P4_21 &= ~0x07;
+        spi_cs1.port = 0;
+        spi_cs1.pin = 9;
+       LPC_GPIO_PORT->DIR[spi_cs1.port] |= (0x01 << spi_cs1.pin);
+       LPC_GPIO_PORT->SET[spi_cs1.port] |= (0x01 << spi_cs1.pin);
         rt_spi_bus_attach_device(&spi_device, "spi10", "spi1", (void *)&spi_cs1);
     }
-    /* register spi bus */
-    {
-        static struct lpc_spi_bus lpc_spi0;
-        lpc_spi_register(LPC_SSP0, &lpc_spi0, "spi0");
-        LPC_IOCON->P2_22 = 0xa2;
-        LPC_IOCON->P2_26 = 0xa2;
-        LPC_IOCON->P2_27 = 0xa2;
-    }
-    /* attach cs */
-    {
-        static struct rt_spi_device spi_device;
-        static struct lpc_spi_cs  spi_cs1;
-        /* spi20: P2.23 */
-        LPC_IOCON->P2_23 &= ~0x07;
-        spi_cs1.port = LPC_GPIO2;
-        spi_cs1.pin = 23;
-        spi_cs1.port->DIR |= (0x01 << spi_cs1.pin);
-        spi_cs1.port->SET |= (0x01 << spi_cs1.pin);
-        rt_spi_bus_attach_device(&spi_device, "spi00", "spi0", (void *)&spi_cs1);
-    }
-    /* attach cs */
-    {
-        static struct rt_spi_device spi_device;
-        static struct lpc_spi_cs  spi_cs1;
-        /* spi20: P2.24 */
-        LPC_IOCON->P2_24 &= ~0x07;
-        spi_cs1.port = LPC_GPIO2;
-        spi_cs1.pin = 24;
-        spi_cs1.port->DIR |= (0x01 << spi_cs1.pin);
-        spi_cs1.port->SET |= (0x01 << spi_cs1.pin);
-        rt_spi_bus_attach_device(&spi_device, "spi01", "spi0", (void *)&spi_cs1);
-    }
+
+
+
     return 0;
 }
 INIT_BOARD_EXPORT(rt_hw_spi_init);
