@@ -162,15 +162,19 @@ void rt_hw_uart_init(void)
      * P0.18: U0_TXD
      * P0.13: U0_RXD
      */
-     /* configure PINs GPIO0.18, GPIO0.13 for UART */
-    LPC_SYSCON->SYSAHBCLKCTRL0 |= ((1UL << 14) |  /* enable clock for GPIO0     */
-                                 (1UL << 12)  );/* enable clock for SWM       */
-
+	  /* Enable the clock for GPIO0     */
+    LPC_SYSCON->SYSAHBCLKCTRL0 |= (1UL << 14); 
+                                
+    /* Enable the clock for Switch Matrix */
+    LPC_SYSCON->SYSAHBCLKCTRL0 |=  (1UL << 12);
+	
     LPC_SWM->PINASSIGN0 &= ~((0xFF <<  0) |       /* clear PIN assign UART0_TXD */
                            (0xFF <<  8)  );     /* clear PIN assign UART0_RXD */
     LPC_SWM->PINASSIGN0 |=  ((  18 <<  0) |       /* PIN assign UART0_TXD  P0.18 */
                            (  13 <<  8)  );     /* PIN assign UART0_RXD  P0.13 */
 
+     	/* Disable the clock for Switch Matrix to save power */
+	  LPC_SYSCON->SYSAHBCLKCTRL0 &=  ~(1UL << 12);
      /* configure UART0 */
      LPC_SYSCON->SYSAHBCLKCTRL1 |=  (1UL << 17);   /* Enable clock to UART0      */
 
@@ -197,14 +201,19 @@ void rt_hw_uart_init(void)
      * P0.11: U1_TXD
      * P0.31: U1_RXD
      */
-     /* configure PINs GPIO0.11, GPIO0.31 for UART */
-    LPC_SYSCON->SYSAHBCLKCTRL0 |= ((1UL << 14) |  /* enable clock for GPIO0     */
-                                 (1UL << 12)  );/* enable clock for SWM       */
+   	/* Enable the clock for GPIO0     */
+    LPC_SYSCON->SYSAHBCLKCTRL0 |= (1UL << 14); 
+                                
+    /* Enable the clock for Switch Matrix */
+    LPC_SYSCON->SYSAHBCLKCTRL0 |=  (1UL << 12);
 
     LPC_SWM->PINASSIGN1 &= ~((0xFF <<  8) |       /* clear PIN assign UART0_TXD */
                            (0xFF <<  16)  );     /* clear PIN assign UART0_RXD */
     LPC_SWM->PINASSIGN1 |=  ((  31 <<  0) |       /* PIN assign UART1_TXD  P0.11 */
                            (  11 <<  8)  );     /* PIN assign UART1_RXD  P0.31 */
+													 
+		/* Disable the clock for Switch Matrix to save power */
+	  LPC_SYSCON->SYSAHBCLKCTRL0 &=  ~(1UL << 12);
 		/* configure UART0 */
     LPC_SYSCON->SYSAHBCLKCTRL1 |=  (1UL << 18);   /* Enable clock to UART1      */
 													 

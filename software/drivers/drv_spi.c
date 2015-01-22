@@ -109,7 +109,7 @@ static rt_uint32_t xfer(struct rt_spi_device *device, struct rt_spi_message *mes
     /* take CS */
     if (message->cs_take)
     {
-        spi_cs->port->CLR |= (0x01 << spi_cs->pin);
+      LPC_GPIO_PORT->CLR[spi_cs->port] |= (0x01 << spi_cs->pin);
     }
 
     {
@@ -130,11 +130,11 @@ static rt_uint32_t xfer(struct rt_spi_device *device, struct rt_spi_message *mes
                 //Wait until the transmit buffer is empty
                 while ((spi_bus->SPI->SR & ((0x01 << 1) | (0x01 << 4))) != 0x02);
                 // Send the byte
-                spi_bus->SPI->DR = data;
+                spi_bus->SPI->TXDAT = data;
                 //Wait until a data is received
                 while ((spi_bus->SPI->SR & ((0x01 << 2) | (0x01 << 4))) != 0x04);
                 // Get the received data
-                data = spi_bus->SPI->DR;
+                data = spi_bus->SPI->RXDAT;
                 if (recv_ptr != RT_NULL)
                 {
                     *recv_ptr++ = data;
@@ -158,12 +158,12 @@ static rt_uint32_t xfer(struct rt_spi_device *device, struct rt_spi_message *mes
                 //Wait until the transmit buffer is empty
                 while ((spi_bus->SPI->SR & ((0x01 << 1) | (0x01 << 4))) != 0x02);
                 // Send the byte
-                spi_bus->SPI->DR = data;
+                spi_bus->SPI->TXDAT = data;
 
                 //Wait until a data is received
                 while ((spi_bus->SPI->SR & ((0x01 << 2) | (0x01 << 4))) != 0x04);
                 // Get the received data
-                data = spi_bus->SPI->DR;
+                data = spi_bus->SPI->RXDAT;
 
                 if (recv_ptr != RT_NULL)
                 {
@@ -176,7 +176,7 @@ static rt_uint32_t xfer(struct rt_spi_device *device, struct rt_spi_message *mes
     /* release CS */
     if (message->cs_release)
     {
-        spi_cs->port->SET |= (0x01 << spi_cs->pin);
+        LPC_GPIO_PORT->SET[spi_cs->port] |= (0x01 << spi_cs->pin);
     }
 
     return message->length;
@@ -245,7 +245,7 @@ int rt_hw_spi_init(void)
 	LPC_SWM->PINASSIGN3 &= ~(0xff << 16);
 	LPC_SWM->PINASSIGN3 |=  (16 << 16);
 	
-  LPC_SWM->PINASSIGN3 &= ~(0xff << 24);
+  LPC_SWM->PINASSIGN3 &= ~(0xffUL << 24);
 	LPC_SWM->PINASSIGN3 |=  (10 << 24);
 	
 	LPC_SWM->PINASSIGN4 &= ~(0xff << 0);
