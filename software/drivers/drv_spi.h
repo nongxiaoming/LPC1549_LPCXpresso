@@ -1,7 +1,7 @@
 /*
- * File      : stm32f20x_40x_spi.h
+ * File      : drv_spi.h
  * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2009 RT-Thread Develop Team
+ * COPYRIGHT (C) 2015 RT-Thread Develop Team
  *
  * The license and distribution terms for this file may be
  * found in the file LICENSE in this distribution or at
@@ -9,7 +9,7 @@
  *
  * Change Logs:
  * Date           Author       Notes
- * 2013-06-10    xiaonong       The first version for LPC40xx
+ * 2015-01-20    xiaonong       The first version for LPC15xx
  */
 
 #ifndef __DRV_SPI_H
