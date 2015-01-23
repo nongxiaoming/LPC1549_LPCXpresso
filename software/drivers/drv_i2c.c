@@ -132,101 +132,112 @@ out:
 }
 
 /**
- * @brief	Handle I2C0 interrupt by calling I2CM interrupt transfer handler
- * @return	Nothing
+ * @brief   Handle I2C0 interrupt by calling I2CM interrupt transfer handler
+ * @return  Nothing
  */
 void I2C0_IRQHandler(void)
 {
-	uint32_t status = LPC_I2C0->STAT;
-	/* Master Lost Arbitration */
-	if (status & I2C_STAT_MSTRARBLOSS) {
-		/* Set transfer status as Arbitration Lost */
-		xfer->status = I2CM_STATUS_ARBLOST;
-		/* Clear Status Flags */
-		Chip_I2CM_ClearStatus(pI2C, I2C_STAT_MSTRARBLOSS);
-		LPC_I2C0->STAT = I2C_STAT_MSTRARBLOSS ;
-	}
-	/* Master Start Stop Error */
-	else if (status & I2C_STAT_MSTSTSTPERR) {
-		/* Set transfer status as Bus Error */
-		xfer->status = I2CM_STATUS_BUS_ERROR;
-		/* Clear Status Flags */
-		LPC_I2C0->STAT = I2C_STAT_MSTSTSTPERR ;
-	}
-	/* Master is Pending */
-	else if (status & I2C_STAT_MSTPENDING) {
-		uint32_t mstatus=(LPC_I2C0->STAT & I2C_STAT_MSTSTATE) >> 1;
-		/* Branch based on Master State Code */
-		switch (mstatus)) {
-		/* Master idle */
-		case I2C_STAT_MSTCODE_IDLE:
-			/* Do Nothing */
-			break;
+    uint32_t status = LPC_I2C0->STAT;
+    /* Master Lost Arbitration */
+    if (status & I2C_STAT_MSTRARBLOSS)
+    {
+        /* Set transfer status as Arbitration Lost */
+        xfer->status = I2CM_STATUS_ARBLOST;
+        /* Clear Status Flags */
+        Chip_I2CM_ClearStatus(pI2C, I2C_STAT_MSTRARBLOSS);
+        LPC_I2C0->STAT = I2C_STAT_MSTRARBLOSS ;
+    }
+    /* Master Start Stop Error */
+    else if (status & I2C_STAT_MSTSTSTPERR)
+    {
+        /* Set transfer status as Bus Error */
+        xfer->status = I2CM_STATUS_BUS_ERROR;
+        /* Clear Status Flags */
+        LPC_I2C0->STAT = I2C_STAT_MSTSTSTPERR ;
+    }
+    /* Master is Pending */
+    else if (status & I2C_STAT_MSTPENDING)
+    {
+        uint32_t mstatus = (LPC_I2C0->STAT & I2C_STAT_MSTSTATE) >> 1;
+        /* Branch based on Master State Code */
+        switch (mstatus))
+        {
+            /* Master idle */
+        case I2C_STAT_MSTCODE_IDLE:
+            /* Do Nothing */
+            break;
 
-		/* Receive data is available */
-		case I2C_STAT_MSTCODE_RXREADY:
-			/* Read Data */
-			*xfer->rxBuff++ = LPC_I2C0->MSTDAT;
-			xfer->rxSz--;
-			if (xfer->rxSz) {
-				/* Set Continue if there is more data to read */
-				LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTCONTINUE;
-			}
-			else {
-				/* Set transfer status as OK */
-				xfer->status = I2CM_STATUS_OK;
-				/* No data to read send Stop */
-				LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTOP;
-			}
-			break;
+            /* Receive data is available */
+        case I2C_STAT_MSTCODE_RXREADY:
+            /* Read Data */
+            *xfer->rxBuff++ = LPC_I2C0->MSTDAT;
+            xfer->rxSz--;
+            if (xfer->rxSz)
+            {
+                /* Set Continue if there is more data to read */
+                LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTCONTINUE;
+            }
+            else
+            {
+                /* Set transfer status as OK */
+                xfer->status = I2CM_STATUS_OK;
+                /* No data to read send Stop */
+                LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTOP;
+            }
+            break;
 
-		/* Master Transmit available */
-		case I2C_STAT_MSTCODE_TXREADY:
-			if (xfer->txSz) {
-				/* If Tx data available transmit data and continue */
-				pI2C->MSTDAT = *xfer->txBuff++;
-				xfer->txSz--;
-				LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTCONTINUE;
-			}
-			else {
-				/* If receive queued after transmit then initiate master receive transfer*/
-				if (xfer->rxSz) {
-					/* Write Address and RW bit to data register */
-					LPC_I2C0->MSTDAT = (xfer->slaveAddr << 1) | 0x1);
-					/* Enter to Master Transmitter mode */
-					LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTART;
-				}
-				else {
-					/* If no receive queued then set transfer status as OK */
-					xfer->status = I2CM_STATUS_OK;
-					/* Send Stop */
-					LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTOP;
-				}
-			}
-			break;
+            /* Master Transmit available */
+        case I2C_STAT_MSTCODE_TXREADY:
+            if (xfer->txSz)
+            {
+                /* If Tx data available transmit data and continue */
+                pI2C->MSTDAT = *xfer->txBuff++;
+                xfer->txSz--;
+                LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTCONTINUE;
+            }
+            else
+            {
+                /* If receive queued after transmit then initiate master receive transfer*/
+                if (xfer->rxSz)
+                {
+                    /* Write Address and RW bit to data register */
+                    LPC_I2C0->MSTDAT = (xfer->slaveAddr << 1) | 0x1);
+                    /* Enter to Master Transmitter mode */
+                    LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTART;
+                }
+                else
+                {
+                    /* If no receive queued then set transfer status as OK */
+                    xfer->status = I2CM_STATUS_OK;
+                    /* Send Stop */
+                    LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTOP;
+                }
+            }
+            break;
 
-		case I2C_STAT_MSTCODE_NACKADR:
-			/* Set transfer status as NACK on address */
-			xfer->status = I2CM_STATUS_NAK_ADR;
-			LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTOP;
-			break;
+        case I2C_STAT_MSTCODE_NACKADR:
+            /* Set transfer status as NACK on address */
+            xfer->status = I2CM_STATUS_NAK_ADR;
+            LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTOP;
+            break;
 
-		case I2C_STAT_MSTCODE_NACKDAT:
-			/* Set transfer status as NACK on data */
-			xfer->status = I2CM_STATUS_NAK_DAT;
-			LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTOP;
-			break;
+        case I2C_STAT_MSTCODE_NACKDAT:
+            /* Set transfer status as NACK on data */
+            xfer->status = I2CM_STATUS_NAK_DAT;
+            LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTOP;
+            break;
 
-		default:
-			/* Default case should not occur*/
-			xfer->status = I2CM_STATUS_ERROR;
-			break;
-		}
-	}
-	else {
-		/* Default case should not occur */
-		xfer->status = I2CM_STATUS_ERROR;
-	}
+        default:
+            /* Default case should not occur*/
+            xfer->status = I2CM_STATUS_ERROR;
+            break;
+        }
+    }
+    else
+    {
+        /* Default case should not occur */
+        xfer->status = I2CM_STATUS_ERROR;
+    }
 }
 
 static const struct rt_i2c_bus_device_ops i2c_ops =
@@ -241,11 +252,11 @@ static const struct rt_i2c_bus_device_ops i2c_ops =
 void rt_hw_i2c_init(void)
 {
     static struct lpc_i2c_bus lpc_i2c1;
-    
-	Chip_IOCON_PinMuxSet(LPC_IOCON, 0, 22, IOCON_DIGMODE_EN | I2C_MODE);
-	Chip_IOCON_PinMuxSet(LPC_IOCON, 0, 23, IOCON_DIGMODE_EN | I2C_MODE);
-	Chip_SWM_EnableFixedPin(SWM_FIXED_I2C0_SCL);
-	Chip_SWM_EnableFixedPin(SWM_FIXED_I2C0_SDA);
+
+    Chip_IOCON_PinMuxSet(LPC_IOCON, 0, 22, IOCON_DIGMODE_EN | I2C_MODE);
+    Chip_IOCON_PinMuxSet(LPC_IOCON, 0, 23, IOCON_DIGMODE_EN | I2C_MODE);
+    Chip_SWM_EnableFixedPin(SWM_FIXED_I2C0_SCL);
+    Chip_SWM_EnableFixedPin(SWM_FIXED_I2C0_SDA);
 
     rt_memset((void *)&lpc_i2c1, 0, sizeof(struct lpc_i2c_bus));
     lpc_i2c1.parent.ops = &i2c_ops;
