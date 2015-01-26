@@ -1,7 +1,7 @@
 /*
- * File      : drv_uart.c
+ * File      : drv_spi.c
  * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2009-2013 RT-Thread Develop Team
+ * COPYRIGHT (C) 2015 RT-Thread Develop Team
  *
  * The license and distribution terms for this file may be
  * found in the file LICENSE in this distribution or at
@@ -45,9 +45,9 @@ static rt_err_t configure(struct rt_spi_device *device,
                           struct rt_spi_configuration *configuration)
 {
     struct lpc_spi_bus *spi_bus = (struct lpc_spi_bus *)device->bus;
-	
-	  /* Disable spi device */
-	  spi_bus->SPI->CFG &= ~(0x01<<0);
+
+    /* Disable spi device */
+    spi_bus->SPI->CFG &= ~(0x01 << 0);
     /* data_width */
     if (configuration->data_width > 3 && configuration->data_width <= 16)
     {
@@ -60,8 +60,8 @@ static rt_err_t configure(struct rt_spi_device *device,
     }
     /* baudrate */
     {
-        uint16_t div_val=0;
-        div_val = SystemCoreClock/configuration->max_hz;
+        uint16_t div_val = 0;
+        div_val = SystemCoreClock / configuration->max_hz;
 
         spi_bus->SPI->DIV = div_val;
     }
@@ -94,7 +94,7 @@ static rt_err_t configure(struct rt_spi_device *device,
 //        }
 //    }
     /* Enable SPI_MASTER */
-     spi_bus->SPI->CFG |= (0x05);
+    spi_bus->SPI->CFG |= (0x05);
 
     return RT_EOK;
 }
@@ -109,7 +109,7 @@ static rt_uint32_t xfer(struct rt_spi_device *device, struct rt_spi_message *mes
     /* take CS */
     if (message->cs_take)
     {
-      LPC_GPIO_PORT->CLR[spi_cs->port] |= (0x01 << spi_cs->pin);
+        LPC_GPIO_PORT->CLR[spi_cs->port] |= (0x01 << spi_cs->pin);
     }
 
     {
@@ -197,14 +197,14 @@ rt_err_t lpc_spi_register(LPC_SPI0_Type *SPI,
     if (SPI == LPC_SPI0)
     {
         lpc_spi->SPI = LPC_SPI0;
-       /* Enable the clock for SPI0 */
-         LPC_SYSCON->SYSAHBCLKCTRL1 |=  (1UL << 9);
+        /* Enable the clock for SPI0 */
+        LPC_SYSCON->SYSAHBCLKCTRL1 |= (1UL << 9);
     }
     else if (SPI == LPC_SPI1)
     {
         lpc_spi->SPI = LPC_SPI1;
         /* Enable the clock for SPI1 */
-         LPC_SYSCON->SYSAHBCLKCTRL1 |=  (1UL << 10);
+        LPC_SYSCON->SYSAHBCLKCTRL1 |= (1UL << 10);
     }
     else
     {
@@ -225,46 +225,46 @@ int rt_hw_spi_init(void)
     {
         static struct lpc_spi_bus lpc_spi0;
         lpc_spi_register(LPC_SPI0, &lpc_spi0, "spi0");
-       	/* Enable the clock for Switch Matrix */
-         LPC_SYSCON->SYSAHBCLKCTRL0 |=  (1UL << 12);
-	/*
-	 * Initialize SPI0 pins connect
-	 * SCK0: PINASSIGN3[15:8]: Select P0.0
-	 * MOSI0: PINASSIGN3[23:16]: Select P0.16
-	 * MISO0: PINASSIGN3[31:24] : Select P0.10
-	 * SSEL0: PINASSIGN4[7:0]: Select P0.9
-	 */
-	LPC_IOCON->PIO0_0 = (0x01<<7);
-	LPC_IOCON->PIO0_16 = (0x01<<7);
-	LPC_IOCON->PIO0_10 = (0x01<<7);
-	LPC_IOCON->PIO0_9 = (0x01<<7);
+        /* Enable the clock for Switch Matrix */
+        LPC_SYSCON->SYSAHBCLKCTRL0 |= (1UL << 12);
+        /*
+         * Initialize SPI0 pins connect
+         * SCK0: PINASSIGN3[15:8]: Select P0.0
+         * MOSI0: PINASSIGN3[23:16]: Select P0.16
+         * MISO0: PINASSIGN3[31:24] : Select P0.10
+         * SSEL0: PINASSIGN4[7:0]: Select P0.9
+         */
+        LPC_IOCON->PIO0_0 = (0x01 << 7);
+        LPC_IOCON->PIO0_16 = (0x01 << 7);
+        LPC_IOCON->PIO0_10 = (0x01 << 7);
+        LPC_IOCON->PIO0_9 = (0x01 << 7);
 
-	LPC_SWM->PINASSIGN3 &= ~(0xff << 8);
-	LPC_SWM->PINASSIGN3 |=  (0 << 8);
-			
-	LPC_SWM->PINASSIGN3 &= ~(0xff << 16);
-	LPC_SWM->PINASSIGN3 |=  (16 << 16);
-	
-  LPC_SWM->PINASSIGN3 &= ~(0xffUL << 24);
-	LPC_SWM->PINASSIGN3 |=  (10 << 24);
-	
-	LPC_SWM->PINASSIGN4 &= ~(0xff << 0);
-	LPC_SWM->PINASSIGN4 |=  (9 << 0);
+        LPC_SWM->PINASSIGN3 &= ~(0xff << 8);
+        LPC_SWM->PINASSIGN3 |= (0 << 8);
+
+        LPC_SWM->PINASSIGN3 &= ~(0xff << 16);
+        LPC_SWM->PINASSIGN3 |= (16 << 16);
+
+        LPC_SWM->PINASSIGN3 &= ~(0xffUL << 24);
+        LPC_SWM->PINASSIGN3 |= (10 << 24);
+
+        LPC_SWM->PINASSIGN4 &= ~(0xff << 0);
+        LPC_SWM->PINASSIGN4 |= (9 << 0);
 
 
-	/* Disable the clock to the Switch Matrix to save power */
-	LPC_SYSCON->SYSAHBCLKCTRL0 &=  ~(1UL << 12);
+        /* Disable the clock to the Switch Matrix to save power */
+        LPC_SYSCON->SYSAHBCLKCTRL0 &=  ~(1UL << 12);
     }
     /* attach cs */
     {
         static struct rt_spi_device spi_device;
         static struct lpc_spi_cs  spi_cs1;
         /* spi10: P4.21 */
-       // LPC_IOCON->P4_21 &= ~0x07;
+        // LPC_IOCON->P4_21 &= ~0x07;
         spi_cs1.port = 0;
         spi_cs1.pin = 9;
-       LPC_GPIO_PORT->DIR[spi_cs1.port] |= (0x01 << spi_cs1.pin);
-       LPC_GPIO_PORT->SET[spi_cs1.port] |= (0x01 << spi_cs1.pin);
+        LPC_GPIO_PORT->DIR[spi_cs1.port] |= (0x01 << spi_cs1.pin);
+        LPC_GPIO_PORT->SET[spi_cs1.port] |= (0x01 << spi_cs1.pin);
         rt_spi_bus_attach_device(&spi_device, "spi10", "spi1", (void *)&spi_cs1);
     }
 

@@ -1,7 +1,7 @@
 /*
  * File      : drv_uart.c
  * This file is part of RT-Thread RTOS
- * COPYRIGHT (C) 2009-2013 RT-Thread Develop Team
+ * COPYRIGHT (C) 2015 RT-Thread Develop Team
  *
  * The license and distribution terms for this file may be
  * found in the file LICENSE in this distribution or at
@@ -32,15 +32,15 @@ static rt_err_t lpc_configure(struct rt_serial_device *serial, struct serial_con
     uart = (struct lpc_uart *)serial->parent.user_data;
 
 
-  /* 115200 baud @ 12MHz */
-  LPC_SYSCON->UARTCLKDIV = 6;                   /* UART clock =  PCLK / 6     */
-  LPC_SYSCON->FRGCTRL    = 0x15FF;
-  uart->UART->BRG  = ((SystemCoreClock/LPC_SYSCON->UARTCLKDIV / 16 / cfg->baud_rate) -1);
+    /* 115200 baud @ 12MHz */
+    LPC_SYSCON->UARTCLKDIV = 6;                   /* UART clock =  PCLK / 6     */
+    LPC_SYSCON->FRGCTRL    = 0x15FF;
+    uart->UART->BRG  = ((SystemCoreClock / LPC_SYSCON->UARTCLKDIV / 16 / cfg->baud_rate) - 1);
 
-  uart->UART->CFG  = ((1UL << 0) |                    /* Enable USART               */
-                (1UL << 2) |                    /* 8 data bits                */
-                (0UL << 4) |                    /* no parity                  */
-                (0UL << 6)  );                  /* 1 stop bit                 */
+    uart->UART->CFG  = ((1UL << 0) |                    /* Enable USART               */
+                        (1UL << 2) |                    /* 8 data bits                */
+                        (0UL << 4) |                    /* no parity                  */
+                        (0UL << 6));                    /* 1 stop bit                 */
 
 
     return RT_EOK;
@@ -111,12 +111,12 @@ void UART0_IRQHandler(void)
 {
     /* enter interrupt */
     rt_interrupt_enter();
-	
-	  if((LPC_USART0->INTSTAT & UART_STAT_RXRDY)!=0x00)
-		{
-		rt_hw_serial_isr(&serial0, RT_SERIAL_EVENT_RX_IND);
-		}
-		
+
+    if ((LPC_USART0->INTSTAT & UART_STAT_RXRDY) != 0x00)
+    {
+        rt_hw_serial_isr(&serial0, RT_SERIAL_EVENT_RX_IND);
+    }
+
     /* leave interrupt */
     rt_interrupt_leave();
 }
@@ -134,12 +134,12 @@ void UART1_IRQHandler(void)
 {
     /* enter interrupt */
     rt_interrupt_enter();
-	
-	  if((LPC_USART1->INTSTAT & UART_STAT_RXRDY)!=0x00)
-		{
-		rt_hw_serial_isr(&serial1, RT_SERIAL_EVENT_RX_IND);
-		}
-		
+
+    if ((LPC_USART1->INTSTAT & UART_STAT_RXRDY) != 0x00)
+    {
+        rt_hw_serial_isr(&serial1, RT_SERIAL_EVENT_RX_IND);
+    }
+
     /* leave interrupt */
     rt_interrupt_leave();
 }
@@ -162,21 +162,21 @@ void rt_hw_uart_init(void)
      * P0.18: U0_TXD
      * P0.13: U0_RXD
      */
-	  /* Enable the clock for GPIO0     */
-    LPC_SYSCON->SYSAHBCLKCTRL0 |= (1UL << 14); 
-                                
-    /* Enable the clock for Switch Matrix */
-    LPC_SYSCON->SYSAHBCLKCTRL0 |=  (1UL << 12);
-	
-    LPC_SWM->PINASSIGN0 &= ~((0xFF <<  0) |       /* clear PIN assign UART0_TXD */
-                           (0xFF <<  8)  );     /* clear PIN assign UART0_RXD */
-    LPC_SWM->PINASSIGN0 |=  ((  18 <<  0) |       /* PIN assign UART0_TXD  P0.18 */
-                           (  13 <<  8)  );     /* PIN assign UART0_RXD  P0.13 */
+    /* Enable the clock for GPIO0     */
+    LPC_SYSCON->SYSAHBCLKCTRL0 |= (1UL << 14);
 
-     	/* Disable the clock for Switch Matrix to save power */
-	  LPC_SYSCON->SYSAHBCLKCTRL0 &=  ~(1UL << 12);
-     /* configure UART0 */
-     LPC_SYSCON->SYSAHBCLKCTRL1 |=  (1UL << 17);   /* Enable clock to UART0      */
+    /* Enable the clock for Switch Matrix */
+    LPC_SYSCON->SYSAHBCLKCTRL0 |= (1UL << 12);
+
+    LPC_SWM->PINASSIGN0 &= ~((0xFF <<  0) |       /* clear PIN assign UART0_TXD */
+                             (0xFF <<  8));       /* clear PIN assign UART0_RXD */
+    LPC_SWM->PINASSIGN0 |= ((18 <<  0) |          /* PIN assign UART0_TXD  P0.18 */
+                            (13 <<  8));         /* PIN assign UART0_RXD  P0.13 */
+
+    /* Disable the clock for Switch Matrix to save power */
+    LPC_SYSCON->SYSAHBCLKCTRL0 &=  ~(1UL << 12);
+    /* configure UART0 */
+    LPC_SYSCON->SYSAHBCLKCTRL1 |= (1UL << 17);    /* Enable clock to UART0      */
 
     /* preemption = 1, sub-priority = 1 */
     NVIC_SetPriority(uart->UART_IRQn, ((0x01 << 3) | 0x01));
@@ -201,22 +201,22 @@ void rt_hw_uart_init(void)
      * P0.11: U1_TXD
      * P0.31: U1_RXD
      */
-   	/* Enable the clock for GPIO0     */
-    LPC_SYSCON->SYSAHBCLKCTRL0 |= (1UL << 14); 
-                                
+    /* Enable the clock for GPIO0     */
+    LPC_SYSCON->SYSAHBCLKCTRL0 |= (1UL << 14);
+
     /* Enable the clock for Switch Matrix */
-    LPC_SYSCON->SYSAHBCLKCTRL0 |=  (1UL << 12);
+    LPC_SYSCON->SYSAHBCLKCTRL0 |= (1UL << 12);
 
     LPC_SWM->PINASSIGN1 &= ~((0xFF <<  8) |       /* clear PIN assign UART0_TXD */
-                           (0xFF <<  16)  );     /* clear PIN assign UART0_RXD */
-    LPC_SWM->PINASSIGN1 |=  ((  31 <<  0) |       /* PIN assign UART1_TXD  P0.11 */
-                           (  11 <<  8)  );     /* PIN assign UART1_RXD  P0.31 */
-													 
-		/* Disable the clock for Switch Matrix to save power */
-	  LPC_SYSCON->SYSAHBCLKCTRL0 &=  ~(1UL << 12);
-		/* configure UART0 */
-    LPC_SYSCON->SYSAHBCLKCTRL1 |=  (1UL << 18);   /* Enable clock to UART1      */
-													 
+                             (0xFF <<  16));       /* clear PIN assign UART0_RXD */
+    LPC_SWM->PINASSIGN1 |= ((31 <<  0) |          /* PIN assign UART1_TXD  P0.11 */
+                            (11 <<  8));         /* PIN assign UART1_RXD  P0.31 */
+
+    /* Disable the clock for Switch Matrix to save power */
+    LPC_SYSCON->SYSAHBCLKCTRL0 &=  ~(1UL << 12);
+    /* configure UART0 */
+    LPC_SYSCON->SYSAHBCLKCTRL1 |= (1UL << 18);    /* Enable clock to UART1      */
+
     /* preemption = 1, sub-priority = 1 */
     NVIC_SetPriority(uart->UART_IRQn, ((0x01 << 3) | 0x01));
 
