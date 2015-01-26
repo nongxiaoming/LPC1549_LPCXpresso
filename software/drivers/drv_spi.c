@@ -49,15 +49,11 @@ static rt_err_t configure(struct rt_spi_device *device,
     /* Disable spi device */
     spi_bus->SPI->CFG &= ~(0x01 << 0);
     /* data_width */
-    if (configuration->data_width > 3 && configuration->data_width <= 16)
-    {
-        //spi_bus->SPI->CR0 = (configuration->data_width - 1);
-
-    }
-    else
+    if (configuration->data_width > 16)
     {
         return RT_EIO;
     }
+
     /* baudrate */
     {
         uint16_t div_val = 0;
@@ -69,30 +65,36 @@ static rt_err_t configure(struct rt_spi_device *device,
     /* CPOL */
     if (configuration->mode & RT_SPI_CPOL)
     {
-        spi_bus->SPI->CFG |= (0x01 << 5);
+        spi_bus->SPI->CFG |= SPI_CFG_CPOL_LO;
     }
     else
     {
-        spi_bus->SPI->CFG &= ~(0x01 << 5);
+        spi_bus->SPI->CFG |= SPI_CFG_CPOL_HI;
     }
     /* CPHA */
     if (configuration->mode & RT_SPI_CPHA)
     {
-        spi_bus->SPI->CFG |= (0x01 << 4);
+        spi_bus->SPI->CFG |= SPI_CFG_CPHA_SECOND;
     }
     else
     {
-        spi_bus->SPI->CFG &= ~(0x01 << 4);
+        spi_bus->SPI->CFG |= SPI_CFG_CPHA_FIRST;
     }
-//    /*Clear the RxFIFO*/
-//    {
-//        uint8_t i;
-//        uint16_t temp = temp;
-//        for (i = 0; i < 8; i++)
-//        {
-//            temp = spi_bus->SPI->DR;
-//        }
-//    }
+    /* data order */
+    if (configuration->mode & RT_SPI_LSB)
+    {
+        spi_bus->SPI->CFG |= SPI_CFG_LSB_FIRST_EN;
+    }
+    else
+    {
+        spi_bus->SPI->CFG |= SPI_CFG_MSB_FIRST_EN;
+    }
+    /* configure the delay */
+    spi_bus->SPI->DLY = SPI_DLY_PRE_DELAY(2);
+    spi_bus->SPI->DLY |= SPI_DLY_POST_DELAY(2);
+    spi_bus->SPI->DLY |= SPI_DLY_FRAME_DELAY(2);
+    spi_bus->SPI->DLY |= SPI_DLY_TRANSFER_DELAY(1);
+
     /* Enable SPI_MASTER */
     spi_bus->SPI->CFG |= (0x05);
 
@@ -105,79 +107,68 @@ static rt_uint32_t xfer(struct rt_spi_device *device, struct rt_spi_message *mes
     struct rt_spi_configuration *config = &device->config;
     struct lpc_spi_cs *spi_cs = device->parent.user_data;
     rt_uint32_t size = message->length;
+    rt_uint32_t send_count = 0 , recv_count = 0 , status = 0;
 
     /* take CS */
     if (message->cs_take)
     {
-        LPC_GPIO_PORT->CLR[spi_cs->port] |= (0x01 << spi_cs->pin);
+        /* clean the status */
+        spi_bus->SPI->STAT = SPI_STAT_CLR_RXOV | SPI_STAT_CLR_TXUR | SPI_STAT_CLR_SSA | SPI_STAT_CLR_SSD | SPI_STAT_FORCE_EOT;
+
+        /* Set control information including SSEL, EOT, EOF RXIGNORE and FLEN */
+        spi_bus->SPI->TXCTL = ((spi_cs->pin | SPI_TXCTL_EOF) & SPI_TXCTL_BITMASK) | SPI_TXDATCTL_LEN(config->data_width - 1);
     }
 
     {
-        if (config->data_width <= 8)
+        const rt_uint8_t *send_ptr = message->send_buf;
+        rt_uint8_t *recv_ptr = message->recv_buf;
+        //  rt_kprintf("size =%d",size);
+        while (send_count < size || recv_count < size)
         {
-            const rt_uint8_t *send_ptr = message->send_buf;
-            rt_uint8_t *recv_ptr = message->recv_buf;
-            //  rt_kprintf("size =%d",size);
-            while (size--)
-            {
-                rt_uint8_t data = 0x00;
+            rt_uint8_t data = 0x00;
 
+
+            status = spi_bus->SPI->STAT;
+
+            /* In case of TxReady */
+            if ((status & SPI_STAT_TXRDY) && (send_count < size))
+            {
                 if (send_ptr != RT_NULL)
                 {
                     data = *send_ptr++;
                 }
+                if ((send_count < (size - 1)) && (message->cs_release))
+                {
+                    spi_bus->SPI->TXDATCTL = (spi_cs->pin & SPI_TXDATCTL_SSEL_MASK) | SPI_TXDATCTL_EOF | SPI_TXDATCTL_EOT |
+                                             SPI_TXDATCTL_LEN(config->data_width - 1) | SPI_TXDATCTL_DATA(data);
+                }
+                else
+                {
+                    spi_bus->SPI->TXDAT = SPI_TXDAT_DATA(data);
+                }
+                send_count ++;
+            }
 
-                //Wait until the transmit buffer is empty
-                while ((spi_bus->SPI->SR & ((0x01 << 1) | (0x01 << 4))) != 0x02);
-                // Send the byte
-                spi_bus->SPI->TXDAT = data;
-                //Wait until a data is received
-                while ((spi_bus->SPI->SR & ((0x01 << 2) | (0x01 << 4))) != 0x04);
-                // Get the received data
-                data = spi_bus->SPI->RXDAT;
+            /*In case of Rx ready */
+            if ((status & SPI_STAT_RXRDY) && (recv_count < size))
+            {
+                /* Get the received data */
+                data = SPI_RXDAT_DATA(spi_bus->SPI->RXDAT);
+                recv_count++;
                 if (recv_ptr != RT_NULL)
                 {
                     *recv_ptr++ = data;
                 }
             }
+
         }
-        else if (config->data_width <= 16)
+        /* Check error */
+        if (spi_bus->SPI->STAT & (SPI_STAT_RXOV | SPI_STAT_TXUR))
         {
-            const rt_uint16_t *send_ptr = message->send_buf;
-            rt_uint16_t *recv_ptr = message->recv_buf;
-
-            while (size--)
-            {
-                rt_uint16_t data = 0xFF;
-
-                if (send_ptr != RT_NULL)
-                {
-                    data = *send_ptr++;
-                }
-
-                //Wait until the transmit buffer is empty
-                while ((spi_bus->SPI->SR & ((0x01 << 1) | (0x01 << 4))) != 0x02);
-                // Send the byte
-                spi_bus->SPI->TXDAT = data;
-
-                //Wait until a data is received
-                while ((spi_bus->SPI->SR & ((0x01 << 2) | (0x01 << 4))) != 0x04);
-                // Get the received data
-                data = spi_bus->SPI->RXDAT;
-
-                if (recv_ptr != RT_NULL)
-                {
-                    *recv_ptr++ = data;
-                }
-            }
+            return 0;
         }
     }
 
-    /* release CS */
-    if (message->cs_release)
-    {
-        LPC_GPIO_PORT->SET[spi_cs->port] |= (0x01 << spi_cs->pin);
-    }
 
     return message->length;
 };
