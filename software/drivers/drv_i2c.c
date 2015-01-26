@@ -21,41 +21,41 @@
 
 
 
-static void i2c_set_clock(LPC_I2C_TypeDef *I2Cx, uint32_t clock)
+static void i2c_set_clock(LPC_I2C0_Type *I2Cx, uint32_t clock)
 {
     uint32_t temp;
 
-    temp = PeripheralClock / clock;
+    temp = SystemCoreClock / clock;
 
     /* Set the I2C clock value to register */
-    I2Cx->SCLH = (uint32_t)(temp / 2);
+//    I2Cx->SCLH = (uint32_t)(temp / 2);
 
-    I2Cx->SCLL = (uint32_t)(temp - I2Cx->SCLH);
+//    I2Cx->SCLL = (uint32_t)(temp - I2Cx->SCLH);
 }
 
-static rt_uint32_t i2c_send_addr(LPC_I2C_TypeDef *I2Cx, struct rt_i2c_msg *msg)
+static rt_uint32_t i2c_send_addr(LPC_I2C0_Type *I2Cx, struct rt_i2c_msg *msg)
 {
     rt_uint16_t addr;
     rt_uint16_t flags = msg->flags;
     /* Make sure start bit is not active */
-    if (I2Cx->CONSET & I2C_I2CONSET_STA)
-    {
-        I2Cx->CONCLR = I2C_I2CONCLR_STAC;
-    }
-    /* Test on the direction to set/reset the read/write bit */
-    addr = msg->addr << 1;
-    if (flags & RT_I2C_RD)
-    {
-        /* Set the address bit0 for read */
-        addr |= 1;
-    }
-    I2Cx->CONCLR = I2C_I2CONCLR_SIC;
-    /* Send the address */
-    I2Cx->DAT = addr & I2C_I2DAT_BITMASK;
+//    if (I2Cx->CONSET & I2C_I2CONSET_STA)
+//    {
+//        I2Cx->CONCLR = I2C_I2CONCLR_STAC;
+//    }
+//    /* Test on the direction to set/reset the read/write bit */
+//    addr = msg->addr << 1;
+//    if (flags & RT_I2C_RD)
+//    {
+//        /* Set the address bit0 for read */
+//        addr |= 1;
+//    }
+//    I2Cx->CONCLR = I2C_I2CONCLR_SIC;
+//    /* Send the address */
+//    I2Cx->DAT = addr & I2C_I2DAT_BITMASK;
 
-    while (!(I2Cx->CONSET & I2C_I2CONSET_SI));
+//    while (!(I2Cx->CONSET & I2C_I2CONSET_SI));
 
-    return (I2Cx->STAT & I2C_STAT_CODE_BITMASK);
+//    return (I2Cx->STAT & I2C_STAT_CODE_BITMASK);
 }
 
 
@@ -184,8 +184,8 @@ void I2C0_IRQHandler(void)
                 /* No data to read send Stop */
                 LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTOP;
             }
-            break;
 
+            break;
             /* Master Transmit available */
         case I2C_STAT_MSTCODE_TXREADY:
             if (xfer->txSz)
@@ -257,7 +257,19 @@ void rt_hw_i2c_init(void)
     Chip_IOCON_PinMuxSet(LPC_IOCON, 0, 23, IOCON_DIGMODE_EN | I2C_MODE);
     Chip_SWM_EnableFixedPin(SWM_FIXED_I2C0_SCL);
     Chip_SWM_EnableFixedPin(SWM_FIXED_I2C0_SDA);
+    
+	  /* Enable I2C clock and reset I2C peripheral */
+	  Chip_I2C_Init(LPC_I2C0);
 
+	  /* Setup clock rate for I2C */
+	  Chip_I2C_SetClockDiv(LPC_I2C0, I2C_CLK_DIVIDER);
+
+	  /* Setup I2CM transfer rate */
+	  Chip_I2CM_SetBusSpeed(LPC_I2C0, I2C_BITRATE);
+	
+	  /* Enable Master Mode */
+	  Chip_I2CM_Enable(LPC_I2C0);
+	
     rt_memset((void *)&lpc_i2c1, 0, sizeof(struct lpc_i2c_bus));
     lpc_i2c1.parent.ops = &i2c_ops;
     lpc_i2c_register(LPC_I2C1, &lpc_i2c1, "i2c1");
