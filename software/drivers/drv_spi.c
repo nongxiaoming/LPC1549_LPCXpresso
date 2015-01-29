@@ -116,7 +116,7 @@ static rt_uint32_t xfer(struct rt_spi_device *device, struct rt_spi_message *mes
         spi_bus->SPI->STAT = SPI_STAT_CLR_RXOV | SPI_STAT_CLR_TXUR | SPI_STAT_CLR_SSA | SPI_STAT_CLR_SSD | SPI_STAT_FORCE_EOT;
 
         /* Set control information including SSEL, EOT, EOF RXIGNORE and FLEN */
-        spi_bus->SPI->TXCTL = ((spi_cs->pin | SPI_TXCTL_EOF) & SPI_TXCTL_BITMASK) | SPI_TXDATCTL_LEN(config->data_width - 1);
+        spi_bus->SPI->TXCTL = ((spi_cs->ncs | SPI_TXCTL_EOF) & SPI_TXCTL_BITMASK) | SPI_TXDATCTL_LEN(config->data_width - 1);
     }
 
     {
@@ -139,7 +139,7 @@ static rt_uint32_t xfer(struct rt_spi_device *device, struct rt_spi_message *mes
                 }
                 if ((send_count < (size - 1)) && (message->cs_release))
                 {
-                    spi_bus->SPI->TXDATCTL = (spi_cs->pin & SPI_TXDATCTL_SSEL_MASK) | SPI_TXDATCTL_EOF | SPI_TXDATCTL_EOT |
+                    spi_bus->SPI->TXDATCTL = (spi_cs->ncs & SPI_TXDATCTL_SSEL_MASK) | SPI_TXDATCTL_EOF | SPI_TXDATCTL_EOT |
                                              SPI_TXDATCTL_LEN(config->data_width - 1) | SPI_TXDATCTL_DATA(data);
                 }
                 else
@@ -250,12 +250,9 @@ int rt_hw_spi_init(void)
     {
         static struct rt_spi_device spi_device;
         static struct lpc_spi_cs  spi_cs1;
-        /* spi10: P4.21 */
-        // LPC_IOCON->P4_21 &= ~0x07;
-        spi_cs1.port = 0;
-        spi_cs1.pin = 9;
-        LPC_GPIO_PORT->DIR[spi_cs1.port] |= (0x01 << spi_cs1.pin);
-        LPC_GPIO_PORT->SET[spi_cs1.port] |= (0x01 << spi_cs1.pin);
+
+
+        spi_cs1.ncs = 0;
         rt_spi_bus_attach_device(&spi_device, "spi10", "spi1", (void *)&spi_cs1);
     }
 
