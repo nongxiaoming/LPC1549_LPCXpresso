@@ -19,116 +19,87 @@
 #ifdef RT_USING_I2C
 
 
+/* I2C clock is set to 1.8MHz */
+#define I2C_CLK_DIVIDER         (40)
+/* 100KHz I2C bit-rate */
+#define I2C_BITRATE         (100000)
+/* Standard I2C mode */
+#define I2C_MODE    (0)
+
+#define I2CM_STATUS_OK              0x01        /*!< Requested Request was executed successfully. */
+#define I2CM_STATUS_ERROR           0x02        /*!< Unknown error condition. */
+#define I2CM_STATUS_NAK_ADR         0x04        /*!< No acknowledgement received from slave during address phase. */
+#define I2CM_STATUS_BUS_ERROR       0x08        /*!< I2C bus error */
+#define I2CM_STATUS_NAK_DAT         0x10        /*!< No acknowledgement received from slave during address phase. */
+#define I2CM_STATUS_ARBLOST         0x20        /*!< Arbitration lost. */
 
 
-static void i2c_set_clock(LPC_I2C0_Type *I2Cx, uint32_t clock)
+struct lpc_i2c_bus
 {
-    uint32_t temp;
+    LPC_I2C0_Type *I2C;
+    struct rt_i2c_msg *msgs;
+    rt_uint32_t num;
+    rt_event_t event;
 
-    temp = SystemCoreClock / clock;
+};
 
-    /* Set the I2C clock value to register */
-//    I2Cx->SCLH = (uint32_t)(temp / 2);
+static struct lpc_i2c_bus lpc_i2c0;
 
-//    I2Cx->SCLL = (uint32_t)(temp - I2Cx->SCLH);
+static  void i2c_set_clock_div(LPC_I2C0_Type *I2Cx, uint32_t clkdiv)
+{
+    if ((clkdiv >= 1) && (clkdiv <= 65536))
+    {
+        I2Cx->DIV = clkdiv - 1;
+    }
+    else
+    {
+        I2Cx->DIV = 0;
+    }
 }
 
-static rt_uint32_t i2c_send_addr(LPC_I2C0_Type *I2Cx, struct rt_i2c_msg *msg)
+static void i2c_set_speed(LPC_I2C0_Type *I2Cx, uint32_t speed)
 {
-    rt_uint16_t addr;
-    rt_uint16_t flags = msg->flags;
-    /* Make sure start bit is not active */
-//    if (I2Cx->CONSET & I2C_I2CONSET_STA)
-//    {
-//        I2Cx->CONCLR = I2C_I2CONCLR_STAC;
-//    }
-//    /* Test on the direction to set/reset the read/write bit */
-//    addr = msg->addr << 1;
-//    if (flags & RT_I2C_RD)
-//    {
-//        /* Set the address bit0 for read */
-//        addr |= 1;
-//    }
-//    I2Cx->CONCLR = I2C_I2CONCLR_SIC;
-//    /* Send the address */
-//    I2Cx->DAT = addr & I2C_I2DAT_BITMASK;
+    uint32_t scl;
 
-//    while (!(I2Cx->CONSET & I2C_I2CONSET_SI));
+    scl = SystemCoreClock / ((I2Cx->DIV & 0xFFFF) + 1) / speed;
 
-//    return (I2Cx->STAT & I2C_STAT_CODE_BITMASK);
+    I2Cx->MSTTIME = ((((scl >> 1) - 2) & 0x07) << 4) | ((scl - (scl >> 1) - 2) & 0x07);
+
 }
-
 
 static rt_size_t lpc_i2c_xfer(struct rt_i2c_bus_device *bus,
                               struct rt_i2c_msg msgs[], rt_uint32_t num)
 {
-    struct rt_i2c_msg *msg;
-    rt_uint32_t i;
-    rt_err_t ret = RT_ERROR;
-    rt_uint32_t stat = 0;
-    struct lpc_i2c_bus *lpc_i2c = (struct lpc_i2c_bus *)bus;
-    /*start the i2c bus*/
-    stat = lpc_i2c_start(lpc_i2c->I2C);
-    if ((I2C_I2STAT_M_TX_RESTART != stat) && (I2C_I2STAT_M_TX_START != stat))
-    {
-        i2c_dbg("start the i2c bus failed,i2c bus stop!\n");
-        goto out;
-    }
-    for (i = 0; i < num; i++)
-    {
-        msg = &msgs[i];
-        if (!(msg->flags & RT_I2C_NO_START))
-        {
-            if (i)
-            {
-                stat = lpc_i2c_start(lpc_i2c->I2C);
-                if ((I2C_I2STAT_M_TX_RESTART != stat) && (I2C_I2STAT_M_TX_START != stat))
-                {
-                    i2c_dbg("restart the i2c bus failed,i2c bus stop!\n");
-                    goto out;
-                }
-            }
-            stat = i2c_send_addr(lpc_i2c->I2C, msg);
-            if (I2C_I2STAT_M_TX_SLAW_ACK != stat && I2C_I2STAT_M_RX_SLAR_ACK != stat)
-            {
-                i2c_dbg("send i2c address but no ack,i2c stop!");
-                goto out;
-            }
-        }
-        if (msg->flags & RT_I2C_RD)
-        {
-            ret = lpc_i2c_recv_bytes(lpc_i2c->I2C, msg);
-            if (ret >= 1)
-                i2c_dbg("read %d byte%s\n",
-                        ret, ret == 1 ? "" : "s");
-            if (ret < msg->len)
-            {
-                if (ret >= 0)
-                    ret = -RT_EIO;
-                goto out;
-            }
-        }
-        else
-        {
-            ret = lpc_i2c_send_bytes(lpc_i2c->I2C, msg);
-            if (ret >= 1)
-                i2c_dbg("write %d byte%s\n",
-                        ret, ret == 1 ? "" : "s");
-            if (ret < msg->len)
-            {
-                if (ret >= 0)
-                    ret = -RT_ERROR;
-                goto out;
-            }
-        }
-    }
-    ret = i;
-
-out:
-    i2c_dbg("send stop condition\n");
-    lpc_i2c_stop(lpc_i2c->I2C);
-
-    return ret;
+	  struct lpc_i2c_bus *lpc_i2c = RT_NULL;
+	  rt_uint32_t ev = 0;
+	  rt_err_t ret = RT_EOK;
+    RT_ASSERT(bus->priv != RT_NULL);
+    lpc_i2c = (struct lpc_i2c_bus *)bus->priv;
+    lpc_i2c->msgs = msgs;
+	  lpc_i2c->num = num;
+	 	/* Clear controller state. */
+	lpc_i2c->I2C->STAT = I2C_STAT_MSTRARBLOSS | I2C_STAT_MSTSTSTPERR;
+	/* Write Address and RW bit to data register */
+	lpc_i2c->I2C->MSTDAT = (lpc_i2c->msgs->addr<<1);
+	/* Enter to Master Transmitter mode */
+	lpc_i2c->I2C->MSTCTL = I2C_MSTCTL_MSTSTART;
+    /* Enable Master Interrupts */
+	 lpc_i2c->I2C->INTENSET = I2C_INTENSET_MSTPENDING | I2C_INTENSET_MSTRARBLOSS | I2C_INTENSET_MSTSTSTPERR;
+	 /* Wait for transfer completion */
+	 ret = rt_event_recv(lpc_i2c->event,0xff,RT_EVENT_FLAG_OR|RT_EVENT_FLAG_CLEAR,bus->timeout,&ev);
+	if(ret == RT_EOK)
+	{
+	/* Clear all Interrupts */
+	lpc_i2c->I2C->INTENCLR = I2C_INTENSET_MSTPENDING | I2C_INTENSET_MSTRARBLOSS | I2C_INTENSET_MSTSTSTPERR;
+		return num;
+	}else
+  {
+	 lpc_i2c->I2C->MSTCTL = I2C_MSTCTL_MSTSTOP;
+	 /* Clear all Interrupts */
+	 lpc_i2c->I2C->INTENCLR = I2C_INTENSET_MSTPENDING | I2C_INTENSET_MSTRARBLOSS | I2C_INTENSET_MSTSTSTPERR;
+	 return 0;
+	}
+    
 }
 
 /**
@@ -141,17 +112,16 @@ void I2C0_IRQHandler(void)
     /* Master Lost Arbitration */
     if (status & I2C_STAT_MSTRARBLOSS)
     {
-        /* Set transfer status as Arbitration Lost */
-        xfer->status = I2CM_STATUS_ARBLOST;
+        /* send transfer status as Arbitration Lost */
+        rt_event_send(lpc_i2c0.event, I2CM_STATUS_ARBLOST);
         /* Clear Status Flags */
-        Chip_I2CM_ClearStatus(pI2C, I2C_STAT_MSTRARBLOSS);
         LPC_I2C0->STAT = I2C_STAT_MSTRARBLOSS ;
     }
     /* Master Start Stop Error */
     else if (status & I2C_STAT_MSTSTSTPERR)
     {
-        /* Set transfer status as Bus Error */
-        xfer->status = I2CM_STATUS_BUS_ERROR;
+        /* send transfer status as Bus Error */
+        rt_event_send(lpc_i2c0.event, I2CM_STATUS_BUS_ERROR);
         /* Clear Status Flags */
         LPC_I2C0->STAT = I2C_STAT_MSTSTSTPERR ;
     }
@@ -160,7 +130,7 @@ void I2C0_IRQHandler(void)
     {
         uint32_t mstatus = (LPC_I2C0->STAT & I2C_STAT_MSTSTATE) >> 1;
         /* Branch based on Master State Code */
-        switch (mstatus))
+        switch (mstatus)
         {
             /* Master idle */
         case I2C_STAT_MSTCODE_IDLE:
@@ -170,9 +140,9 @@ void I2C0_IRQHandler(void)
             /* Receive data is available */
         case I2C_STAT_MSTCODE_RXREADY:
             /* Read Data */
-            *xfer->rxBuff++ = LPC_I2C0->MSTDAT;
-            xfer->rxSz--;
-            if (xfer->rxSz)
+            *lpc_i2c0.msgs->buf++ = LPC_I2C0->MSTDAT;
+            lpc_i2c0.msgs->len--;
+            if (lpc_i2c0.msgs->len)
             {
                 /* Set Continue if there is more data to read */
                 LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTCONTINUE;
@@ -180,7 +150,7 @@ void I2C0_IRQHandler(void)
             else
             {
                 /* Set transfer status as OK */
-                xfer->status = I2CM_STATUS_OK;
+                rt_event_send(lpc_i2c0.event, I2CM_STATUS_OK);
                 /* No data to read send Stop */
                 LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTOP;
             }
@@ -188,27 +158,52 @@ void I2C0_IRQHandler(void)
             break;
             /* Master Transmit available */
         case I2C_STAT_MSTCODE_TXREADY:
-            if (xfer->txSz)
+            if ((lpc_i2c0.msgs->flags & RT_I2C_WR) && (lpc_i2c0.msgs->len))
             {
                 /* If Tx data available transmit data and continue */
-                pI2C->MSTDAT = *xfer->txBuff++;
-                xfer->txSz--;
+                LPC_I2C0->MSTDAT = *lpc_i2c0.msgs->buf++;
+                lpc_i2c0.msgs->len--;
                 LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTCONTINUE;
             }
             else
             {
-                /* If receive queued after transmit then initiate master receive transfer*/
-                if (xfer->rxSz)
+                if ((lpc_i2c0.msgs->flags & RT_I2C_WR) && lpc_i2c0.num)
                 {
-                    /* Write Address and RW bit to data register */
-                    LPC_I2C0->MSTDAT = (xfer->slaveAddr << 1) | 0x1);
-                    /* Enter to Master Transmitter mode */
-                    LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTART;
+                    lpc_i2c0.msgs++;
+                    lpc_i2c0.num--;
+                    if (lpc_i2c0.msgs->len)
+                  {
+                    /* If receive queued after transmit then initiate master receive transfer*/
+                    if (lpc_i2c0.msgs->flags & RT_I2C_RD)
+                        {
+                            /* Write Address and RW bit to data register */
+                            LPC_I2C0->MSTDAT = ((lpc_i2c0.msgs->addr << 1) | 0x1);
+                           
+                        }
+                        else if (lpc_i2c0.msgs->flags & RT_I2C_WR)
+                        {
+                          /* If Tx data available transmit data and continue */
+                          LPC_I2C0->MSTDAT = *lpc_i2c0.msgs->buf++;
+                          lpc_i2c0.msgs->len--;
+                          LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTCONTINUE;
+                        }
+												if(!(lpc_i2c0.msgs->flags & RT_I2C_NO_START))
+												{
+												 /* Enter to Master Transmitter mode */
+                            LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTART;
+												}
+                    }else
+                    {
+										/* If no receive queued then set transfer status as OK */
+                    rt_event_send(lpc_i2c0.event, I2CM_STATUS_OK);
+                    /* Send Stop */
+                    LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTOP;
+										}
                 }
                 else
                 {
                     /* If no receive queued then set transfer status as OK */
-                    xfer->status = I2CM_STATUS_OK;
+                    rt_event_send(lpc_i2c0.event, I2CM_STATUS_OK);
                     /* Send Stop */
                     LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTOP;
                 }
@@ -217,26 +212,26 @@ void I2C0_IRQHandler(void)
 
         case I2C_STAT_MSTCODE_NACKADR:
             /* Set transfer status as NACK on address */
-            xfer->status = I2CM_STATUS_NAK_ADR;
+            rt_event_send(lpc_i2c0.event, I2CM_STATUS_NAK_ADR);
             LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTOP;
             break;
 
         case I2C_STAT_MSTCODE_NACKDAT:
             /* Set transfer status as NACK on data */
-            xfer->status = I2CM_STATUS_NAK_DAT;
+            rt_event_send(lpc_i2c0.event, I2CM_STATUS_NAK_DAT);
             LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTOP;
             break;
 
         default:
             /* Default case should not occur*/
-            xfer->status = I2CM_STATUS_ERROR;
+            rt_event_send(lpc_i2c0.event, I2CM_STATUS_ERROR);
             break;
         }
     }
     else
     {
         /* Default case should not occur */
-        xfer->status = I2CM_STATUS_ERROR;
+        rt_event_send(lpc_i2c0.event, I2CM_STATUS_ERROR);
     }
 }
 
@@ -248,30 +243,45 @@ static const struct rt_i2c_bus_device_ops i2c_ops =
 };
 
 
-
 void rt_hw_i2c_init(void)
 {
-    static struct lpc_i2c_bus lpc_i2c1;
+    static struct rt_i2c_bus_device device;
+	  LPC_IOCON->PIO0_22 = (0x01 << 7) | I2C_MODE;
+	  LPC_IOCON->PIO0_23 = (0x01 << 7) | I2C_MODE;
+	
+    LPC_SWM->PINENABLE1 &= ~(0x01<<3);
+	  LPC_SWM->PINENABLE1 &= ~(0x01<<4);
 
-    Chip_IOCON_PinMuxSet(LPC_IOCON, 0, 22, IOCON_DIGMODE_EN | I2C_MODE);
-    Chip_IOCON_PinMuxSet(LPC_IOCON, 0, 23, IOCON_DIGMODE_EN | I2C_MODE);
-    Chip_SWM_EnableFixedPin(SWM_FIXED_I2C0_SCL);
-    Chip_SWM_EnableFixedPin(SWM_FIXED_I2C0_SDA);
+    /* Enable I2C clock */
+	  LPC_SYSCON->SYSAHBCLKCTRL1 |= (0x01<<13);
+
+
+	  /* Peripheral reset control to I2C */
+	  LPC_SYSCON->PRESETCTRL1 |= (1 << 13);
+	  LPC_SYSCON->PRESETCTRL1 &= ~(1 << 13);
+
+    /* Setup clock rate for I2C */
+    i2c_set_clock_div(LPC_I2C0, I2C_CLK_DIVIDER);
+
+    /* Setup I2CM transfer rate */
+    i2c_set_speed(LPC_I2C0, I2C_BITRATE);
+
+    /* Enable Master Mode */
+    LPC_I2C0->CFG = (LPC_I2C0->CFG & I2C_CFG_MASK) | I2C_CFG_MSTEN;
     
-	  /* Enable I2C clock and reset I2C peripheral */
-	  Chip_I2C_Init(LPC_I2C0);
+		/* preemption = 1, sub-priority = 1 */
+    NVIC_SetPriority(I2C0_IRQn, ((0x01 << 3) | 0x01));
 
-	  /* Setup clock rate for I2C */
-	  Chip_I2C_SetClockDiv(LPC_I2C0, I2C_CLK_DIVIDER);
+    /* Enable Interrupt for I2C0 channel */
+    NVIC_EnableIRQ(I2C0_IRQn);
+		
+    rt_memset((void *)&lpc_i2c0, 0, sizeof(struct lpc_i2c_bus));
+		lpc_i2c0.I2C = LPC_I2C0;
+		lpc_i2c0.event = rt_event_create("i2c0",RT_IPC_FLAG_FIFO);
+		
+    device.ops = &i2c_ops;
+		device.priv = &lpc_i2c0;
 
-	  /* Setup I2CM transfer rate */
-	  Chip_I2CM_SetBusSpeed(LPC_I2C0, I2C_BITRATE);
-	
-	  /* Enable Master Mode */
-	  Chip_I2CM_Enable(LPC_I2C0);
-	
-    rt_memset((void *)&lpc_i2c1, 0, sizeof(struct lpc_i2c_bus));
-    lpc_i2c1.parent.ops = &i2c_ops;
-    lpc_i2c_register(LPC_I2C1, &lpc_i2c1, "i2c1");
+		rt_i2c_bus_device_register(&device, "i2c0");
 }
 #endif

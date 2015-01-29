@@ -22,16 +22,6 @@
 
 //#define I2C_USE_DMA
 
-struct lpc_i2c_bus
-{
-    LPC_I2C0_Type *I2C;
-};
-
-struct lpc_spi_cs
-{
-    uint8_t port;
-    uint8_t pin;
-};
 
 /*
  * @brief I2C Configuration register Bit definition
