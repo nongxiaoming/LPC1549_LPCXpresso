@@ -21,8 +21,8 @@
 
 /* I2C clock is set to 1.8MHz */
 #define I2C_CLK_DIVIDER         (40)
-/* 100KHz I2C bit-rate */
-#define I2C_BITRATE         (100000)
+/* 400KHz I2C bit-rate */
+#define I2C_BITRATE         (400000)
 /* Standard I2C mode */
 #define I2C_MODE    (0)
 
@@ -75,23 +75,30 @@ static rt_size_t lpc_i2c_xfer(struct rt_i2c_bus_device *bus,
 	  rt_err_t ret = RT_EOK;
     RT_ASSERT(bus->priv != RT_NULL);
     lpc_i2c = (struct lpc_i2c_bus *)bus->priv;
-    lpc_i2c->msgs = msgs;
+    lpc_i2c->msgs = &msgs[0];
 	  lpc_i2c->num = num;
 	 	/* Clear controller state. */
-	lpc_i2c->I2C->STAT = I2C_STAT_MSTRARBLOSS | I2C_STAT_MSTSTSTPERR;
+	 lpc_i2c->I2C->STAT = I2C_STAT_MSTRARBLOSS | I2C_STAT_MSTSTSTPERR;
 	/* Write Address and RW bit to data register */
-	lpc_i2c->I2C->MSTDAT = (lpc_i2c->msgs->addr<<1);
+	 lpc_i2c->I2C->MSTDAT = (lpc_i2c->msgs->addr<<1);
+
 	/* Enter to Master Transmitter mode */
-	lpc_i2c->I2C->MSTCTL = I2C_MSTCTL_MSTSTART;
+	 lpc_i2c->I2C->MSTCTL = I2C_MSTCTL_MSTSTART;
+	 lpc_i2c->num--;
     /* Enable Master Interrupts */
 	 lpc_i2c->I2C->INTENSET = I2C_INTENSET_MSTPENDING | I2C_INTENSET_MSTRARBLOSS | I2C_INTENSET_MSTSTSTPERR;
 	 /* Wait for transfer completion */
 	 ret = rt_event_recv(lpc_i2c->event,0xff,RT_EVENT_FLAG_OR|RT_EVENT_FLAG_CLEAR,bus->timeout,&ev);
 	if(ret == RT_EOK)
 	{
-	/* Clear all Interrupts */
-	lpc_i2c->I2C->INTENCLR = I2C_INTENSET_MSTPENDING | I2C_INTENSET_MSTRARBLOSS | I2C_INTENSET_MSTSTSTPERR;
+	 if(ev&I2CM_STATUS_OK)
+	 {
 		return num;
+	 }else
+   {
+		rt_kprintf("i2c error!\n");
+	 return 0;
+	 }
 	}else
   {
 	 lpc_i2c->I2C->MSTCTL = I2C_MSTCTL_MSTSTOP;
@@ -109,11 +116,13 @@ static rt_size_t lpc_i2c_xfer(struct rt_i2c_bus_device *bus,
 void I2C0_IRQHandler(void)
 {
     uint32_t status = LPC_I2C0->STAT;
+   rt_interrupt_enter();
     /* Master Lost Arbitration */
     if (status & I2C_STAT_MSTRARBLOSS)
     {
         /* send transfer status as Arbitration Lost */
         rt_event_send(lpc_i2c0.event, I2CM_STATUS_ARBLOST);
+			  rt_kprintf("i2c Arbitration Lost!\n");
         /* Clear Status Flags */
         LPC_I2C0->STAT = I2C_STAT_MSTRARBLOSS ;
     }
@@ -122,19 +131,21 @@ void I2C0_IRQHandler(void)
     {
         /* send transfer status as Bus Error */
         rt_event_send(lpc_i2c0.event, I2CM_STATUS_BUS_ERROR);
+			  rt_kprintf("i2c Bus Error!\n");
         /* Clear Status Flags */
         LPC_I2C0->STAT = I2C_STAT_MSTSTSTPERR ;
     }
     /* Master is Pending */
     else if (status & I2C_STAT_MSTPENDING)
-    {
+    { 
+			 
         uint32_t mstatus = (LPC_I2C0->STAT & I2C_STAT_MSTSTATE) >> 1;
         /* Branch based on Master State Code */
         switch (mstatus)
         {
             /* Master idle */
         case I2C_STAT_MSTCODE_IDLE:
-            /* Do Nothing */
+
             break;
 
             /* Receive data is available */
@@ -153,12 +164,13 @@ void I2C0_IRQHandler(void)
                 rt_event_send(lpc_i2c0.event, I2CM_STATUS_OK);
                 /* No data to read send Stop */
                 LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTOP;
+							  LPC_I2C0->INTENCLR = I2C_INTENSET_MSTPENDING | I2C_INTENSET_MSTRARBLOSS | I2C_INTENSET_MSTSTSTPERR;
             }
 
             break;
             /* Master Transmit available */
         case I2C_STAT_MSTCODE_TXREADY:
-            if ((lpc_i2c0.msgs->flags & RT_I2C_WR) && (lpc_i2c0.msgs->len))
+            if (((lpc_i2c0.msgs->flags & RT_I2C_RD)==0x00) && (lpc_i2c0.msgs->len))
             {
                 /* If Tx data available transmit data and continue */
                 LPC_I2C0->MSTDAT = *lpc_i2c0.msgs->buf++;
@@ -167,7 +179,7 @@ void I2C0_IRQHandler(void)
             }
             else
             {
-                if ((lpc_i2c0.msgs->flags & RT_I2C_WR) && lpc_i2c0.num)
+                if (((lpc_i2c0.msgs->flags & RT_I2C_RD)==0x00) && lpc_i2c0.num)
                 {
                     lpc_i2c0.msgs++;
                     lpc_i2c0.num--;
@@ -180,7 +192,7 @@ void I2C0_IRQHandler(void)
                             LPC_I2C0->MSTDAT = ((lpc_i2c0.msgs->addr << 1) | 0x1);
                            
                         }
-                        else if (lpc_i2c0.msgs->flags & RT_I2C_WR)
+                        else
                         {
                           /* If Tx data available transmit data and continue */
                           LPC_I2C0->MSTDAT = *lpc_i2c0.msgs->buf++;
@@ -198,6 +210,7 @@ void I2C0_IRQHandler(void)
                     rt_event_send(lpc_i2c0.event, I2CM_STATUS_OK);
                     /* Send Stop */
                     LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTOP;
+										LPC_I2C0->INTENCLR = I2C_INTENSET_MSTPENDING | I2C_INTENSET_MSTRARBLOSS | I2C_INTENSET_MSTSTSTPERR;
 										}
                 }
                 else
@@ -206,6 +219,7 @@ void I2C0_IRQHandler(void)
                     rt_event_send(lpc_i2c0.event, I2CM_STATUS_OK);
                     /* Send Stop */
                     LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTOP;
+									  LPC_I2C0->INTENCLR = I2C_INTENSET_MSTPENDING | I2C_INTENSET_MSTRARBLOSS | I2C_INTENSET_MSTSTSTPERR;
                 }
             }
             break;
@@ -214,17 +228,20 @@ void I2C0_IRQHandler(void)
             /* Set transfer status as NACK on address */
             rt_event_send(lpc_i2c0.event, I2CM_STATUS_NAK_ADR);
             LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTOP;
+				    LPC_I2C0->INTENCLR = I2C_INTENSET_MSTPENDING | I2C_INTENSET_MSTRARBLOSS | I2C_INTENSET_MSTSTSTPERR;
             break;
 
         case I2C_STAT_MSTCODE_NACKDAT:
             /* Set transfer status as NACK on data */
             rt_event_send(lpc_i2c0.event, I2CM_STATUS_NAK_DAT);
             LPC_I2C0->MSTCTL = I2C_MSTCTL_MSTSTOP;
+				    LPC_I2C0->INTENCLR = I2C_INTENSET_MSTPENDING | I2C_INTENSET_MSTRARBLOSS | I2C_INTENSET_MSTSTSTPERR;
             break;
 
         default:
             /* Default case should not occur*/
             rt_event_send(lpc_i2c0.event, I2CM_STATUS_ERROR);
+				    LPC_I2C0->INTENCLR = I2C_INTENSET_MSTPENDING | I2C_INTENSET_MSTRARBLOSS | I2C_INTENSET_MSTSTSTPERR;
             break;
         }
     }
@@ -232,7 +249,9 @@ void I2C0_IRQHandler(void)
     {
         /* Default case should not occur */
         rt_event_send(lpc_i2c0.event, I2CM_STATUS_ERROR);
+			 rt_kprintf("should not occur!\n");
     }
+		rt_interrupt_leave();
 }
 
 static const struct rt_i2c_bus_device_ops i2c_ops =
@@ -246,20 +265,23 @@ static const struct rt_i2c_bus_device_ops i2c_ops =
 void rt_hw_i2c_init(void)
 {
     static struct rt_i2c_bus_device device;
+	  /* Enable I2C clock */
+	  LPC_SYSCON->SYSAHBCLKCTRL1 |= (0x01<<13);
+	  /* Enable the clock for Switch Matrix */
+    LPC_SYSCON->SYSAHBCLKCTRL0 |= (1UL << 12);
+	
 	  LPC_IOCON->PIO0_22 = (0x01 << 7) | I2C_MODE;
 	  LPC_IOCON->PIO0_23 = (0x01 << 7) | I2C_MODE;
 	
     LPC_SWM->PINENABLE1 &= ~(0x01<<3);
 	  LPC_SWM->PINENABLE1 &= ~(0x01<<4);
 
-    /* Enable I2C clock */
-	  LPC_SYSCON->SYSAHBCLKCTRL1 |= (0x01<<13);
-
-
 	  /* Peripheral reset control to I2C */
 	  LPC_SYSCON->PRESETCTRL1 |= (1 << 13);
 	  LPC_SYSCON->PRESETCTRL1 &= ~(1 << 13);
-
+	
+   /* Disable the clock to the Switch Matrix to save power */
+    LPC_SYSCON->SYSAHBCLKCTRL0 &=  ~(1UL << 12);
     /* Setup clock rate for I2C */
     i2c_set_clock_div(LPC_I2C0, I2C_CLK_DIVIDER);
 
