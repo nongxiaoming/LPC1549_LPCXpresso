@@ -13,7 +13,11 @@
  */
 
 #include <rtthread.h>
+#include <rtdevice.h>
 #include "drv_led.h"
+#include "drv_spi.h"
+#include "drv_i2c.h"
+#include "drv_mpu6050.h"
 #ifdef RT_USING_FINSH
 #include <finsh.h>
 #include <shell.h>
@@ -21,6 +25,10 @@
 
 void rt_init_thread_entry(void* parameter)
 {
+	rt_i2c_core_init();
+	rt_hw_i2c_init();
+	rt_hw_spi_init();
+	rt_hw_mpu6050_init("i2c0", MPU6050_DEFAULT_ADDRESS);
 #ifdef RT_USING_FINSH
 	/* initialization finsh shell Component */
     finsh_system_init();
