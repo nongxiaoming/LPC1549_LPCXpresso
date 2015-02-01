@@ -262,7 +262,7 @@ static const struct rt_i2c_bus_device_ops i2c_ops =
 };
 
 
-void rt_hw_i2c_init(void)
+int rt_hw_i2c_init(void)
 {
     static struct rt_i2c_bus_device device;
 	  /* Enable I2C clock */
@@ -305,5 +305,9 @@ void rt_hw_i2c_init(void)
 		device.priv = &lpc_i2c0;
 
 		rt_i2c_bus_device_register(&device, "i2c0");
+		
+		return 0;
 }
+INIT_BOARD_EXPORT(rt_hw_i2c_init);
+
 #endif

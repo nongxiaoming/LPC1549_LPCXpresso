@@ -167,6 +167,6 @@
 
 
 
-void rt_hw_i2c_init(void);
+int rt_hw_i2c_init(void);
 
 #endif // __DRV_I2C_H
