@@ -9,6 +9,8 @@ src	= Split("""
 board.c
 drv_uart.c
 drv_led.c
+drv_eeprom.c
+drv_iap.c
 """)
 
 # add RTC driver.
@@ -22,7 +24,7 @@ if GetDepend('RT_USING_SPI') == True:
 # add i2c driver.
 if GetDepend('RT_USING_I2C') == True:
 	src += ['drv_i2c.c']
-
+	src += ['drv_mpu6050.c']
 
 CPPPATH = [cwd]
 
