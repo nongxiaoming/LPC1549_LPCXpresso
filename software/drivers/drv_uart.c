@@ -207,14 +207,14 @@ void rt_hw_uart_init(void)
     /* Enable the clock for Switch Matrix */
     LPC_SYSCON->SYSAHBCLKCTRL0 |= (1UL << 12);
 
-    LPC_SWM->PINASSIGN1 &= ~((0xFF <<  8) |       /* clear PIN assign UART0_TXD */
+    LPC_SWM->PINASSIGN1 &= ~((0xFF <<  8) |        /* clear PIN assign UART0_TXD */
                              (0xFF <<  16));       /* clear PIN assign UART0_RXD */
-    LPC_SWM->PINASSIGN1 |= ((31 <<  0) |          /* PIN assign UART1_TXD  P0.11 */
-                            (11 <<  8));         /* PIN assign UART1_RXD  P0.31 */
+    LPC_SWM->PINASSIGN1 |= ((31 <<  0) |           /* PIN assign UART1_TXD  P0.11 */
+                            (11 <<  8));           /* PIN assign UART1_RXD  P0.31 */
 
     /* Disable the clock for Switch Matrix to save power */
     LPC_SYSCON->SYSAHBCLKCTRL0 &=  ~(1UL << 12);
-    /* configure UART0 */
+    /* configure UART1 */
     LPC_SYSCON->SYSAHBCLKCTRL1 |= (1UL << 18);    /* Enable clock to UART1      */
 
     /* preemption = 1, sub-priority = 1 */
@@ -223,7 +223,7 @@ void rt_hw_uart_init(void)
     /* Enable Interrupt for UART channel */
     NVIC_EnableIRQ(uart->UART_IRQn);
 
-    /* register UART2 device */
+    /* register UART1 device */
     rt_hw_serial_register(&serial1, "uart1",
                           RT_DEVICE_FLAG_RDWR | RT_DEVICE_FLAG_INT_RX | RT_DEVICE_FLAG_STREAM,
                           uart);
